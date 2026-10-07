@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DC_MANAGER
+  FIELD_MANAGER
+  AUDITOR
+}
+
+enum IncidentCategory {
+  FIBER_CUT
+  POWER_OUTAGE
+  HARDWARE_FAULT
+  SCHEDULED_MAINTENANCE
+}
+
+enum IncidentStatus {
+  PENDING_DC_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model District {
+  id                    String      @id @default(uuid())
+  code                  String      @unique
+  name                  String
+  totalCameras          Int         @default(0)
+  activeCameras         Int         @default(0)
+  dcManagerName         String
+  fieldManagerName      String
+  grossUptimePercent    Float       @default(100.0)
+  externalExclusionsMins Int        @default(0)
+  previousRank          Int         @default(1)
+  cameras               Camera[]
+  incidents             Incident[]
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+}
+
+model Camera {
+  id          String     @id @default(uuid())
+  camId       String     @unique
+  districtId  String
+  district    District   @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  location    String
+  zone        String
+  isOnline    Boolean    @default(true)
+  incidents   Incident[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Incident {
+  id               String           @id @default(uuid())
+  incidentCode     String           @unique
+  districtId       String
+  district         District         @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  camId            String
+  camera           Camera           @relation(fields: [camId], references: [camId], onDelete: Cascade)
+  location         String
+  downtimeStart    DateTime
+  durationMins     Int
+  category         IncidentCategory
+  submittedBy      String
+  remarks          String
+  proofFileName    String?
+  proofUrl         String?
+  status           IncidentStatus   @default(PENDING_DC_REVIEW)
+  dcManagerName    String?
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model LeaderboardSnapshot {
+  id             String   @id @default(uuid())
+  snapshotDate   DateTime @default(now())
+  districtCode   String
+  districtName   String
+  rank           Int
+  netUptime      Float
+  grossUptime    Float
+  tier           String
+  isLocked       Boolean  @default(false)
+}

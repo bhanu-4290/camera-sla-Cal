@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise Camera Uptime SLA Classifier (13 AP Districts)</title>
+  
+  <!-- React, Tailwind & XLSX Parser CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #e2e8f0; }
+    .glass-card { background: rgba(17, 24, 39, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #111827; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+  </style>
+</head>
+<body class="custom-scrollbar min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const INITIAL_DISTRICTS = [
+      { id: 'DIST-01', name: 'ANANTPUR', code: 'ATP', totalCameras: 240, activeCameras: 236, dcManager: 'Rajesh Sharma', fieldManager: 'Amit Kumar', grossUptime: 98.4, netUptime: 99.2, prevRank: 1, rank: 1, externalExclusionsMins: 420 },
+      { id: 'DIST-02', name: 'CHITOOR', code: 'CTR', totalCameras: 180, activeCameras: 172, dcManager: 'Priya Patel', fieldManager: 'Suresh Raina', grossUptime: 95.5, netUptime: 98.1, prevRank: 4, rank: 2, externalExclusionsMins: 780 },
+      { id: 'DIST-03', name: 'EAST GODAWARI', code: 'EG', totalCameras: 310, activeCameras: 295, dcManager: 'Vikram Seth', fieldManager: 'Karan Johar', grossUptime: 95.1, netUptime: 97.8, prevRank: 2, rank: 3, externalExclusionsMins: 1100 },
+      { id: 'DIST-04', name: 'GUNTUR', code: 'GNT', totalCameras: 210, activeCameras: 198, dcManager: 'Sunita Reddy', fieldManager: 'Ravi Teja', grossUptime: 94.2, netUptime: 96.5, prevRank: 3, rank: 4, externalExclusionsMins: 540 },
+      { id: 'DIST-05', name: 'KADAPA', code: 'KDP', totalCameras: 195, activeCameras: 180, dcManager: 'Anil Deshmukh', fieldManager: 'Ganesh Naik', grossUptime: 92.3, netUptime: 95.9, prevRank: 7, rank: 5, externalExclusionsMins: 920 },
+      { id: 'DIST-06', name: 'KRISHNA', code: 'KRN', totalCameras: 280, activeCameras: 265, dcManager: 'Deepak Mishra', fieldManager: 'Sanjay Dutt', grossUptime: 94.6, netUptime: 95.4, prevRank: 5, rank: 6, externalExclusionsMins: 310 },
+      { id: 'DIST-07', name: 'KURNOOL', code: 'KNL', totalCameras: 160, activeCameras: 148, dcManager: 'Meena Saxena', fieldManager: 'Rahul Roy', grossUptime: 92.5, netUptime: 94.2, prevRank: 6, rank: 7, externalExclusionsMins: 480 },
+      { id: 'DIST-08', name: 'NELLORE', code: 'NLR', totalCameras: 140, activeCameras: 125, dcManager: 'Rohan Gupta', fieldManager: 'Manish Malhotra', grossUptime: 89.2, netUptime: 93.6, prevRank: 10, rank: 8, externalExclusionsMins: 1250 },
+      { id: 'DIST-09', name: 'PRAKASHAM', code: 'PKM', totalCameras: 726, activeCameras: 704, dcManager: 'Alok Nath', fieldManager: 'Varun Dhawan', grossUptime: 90.0, netUptime: 92.8, prevRank: 8, rank: 9, externalExclusionsMins: 600 },
+      { id: 'DIST-10', name: 'SRIKAKULAM', code: 'SKL', totalCameras: 260, activeCameras: 230, dcManager: 'Smriti Irani', fieldManager: 'Kabir Khan', grossUptime: 88.4, netUptime: 91.5, prevRank: 9, rank: 10, externalExclusionsMins: 850 },
+      { id: 'DIST-11', name: 'VIJAYANAGARAM', code: 'VZM', totalCameras: 175, activeCameras: 150, dcManager: 'Kavita Roy', fieldManager: 'Arjun Kapoor', grossUptime: 85.7, netUptime: 90.2, prevRank: 11, rank: 11, externalExclusionsMins: 940 },
+      { id: 'DIST-12', name: 'VIZAG', code: 'VZG', totalCameras: 190, activeCameras: 155, dcManager: 'Nitin Gadkari', fieldManager: 'Prateek Babbar', grossUptime: 81.5, netUptime: 88.7, prevRank: 12, rank: 12, externalExclusionsMins: 1380 },
+      { id: 'DIST-13', name: 'WEST GODAWARI', code: 'WG', totalCameras: 130, activeCameras: 98, dcManager: 'Biren Singh', fieldManager: 'Hardik Pandya', grossUptime: 75.3, netUptime: 84.6, prevRank: 13, rank: 13, externalExclusionsMins: 1620 }
+    ];
+
+    const INITIAL_INCIDENTS = [
+      {
+        id: 'INC-2026-0891',
+        camId: 'CAM-PKM-044',
+        districtId: 'DIST-09',
+        districtName: 'PRAKASHAM',
+        location: 'Ongole Central Highway Junction',
+        downtimeStart: '2026-08-06 14:30',
+        durationMins: 180,
+        category: 'Fiber Cut',
+        submittedBy: 'Varun Dhawan (Field Mgr)',
+        remarks: 'Major state highway road expansion cut main optical fiber trunkline lines.',
+        proofFile: 'proof_fiber_cut_hwy4.jpg',
+        proofUrl: 'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?auto=format&fit=crop&w=600&q=80',
+        status: 'Pending DC Review',
+        submittedAt: '2026-08-06 16:45'
+      }
+    ];
+
+    // --- ROBUST DURATION PARSER ---
+    // Safely handles empty/undefined, "23h 17m", "12h 10m", HH:MM, total minutes, or seconds
+    function parseOnlineDurationToMinutes(val, isDowntimeCol = false) {
+      if (val === null || val === undefined) return isDowntimeCol ? 0 : 1440;
+      
+      const s = String(val).toLowerCase().trim();
+      if (!s || s === "null" || s === "undefined") return isDowntimeCol ? 0 : 1440;
+
+      if (typeof val === 'number') {
+        if (val > 1440) {
+          const mins = Math.round(val / 60);
+          return isDowntimeCol ? Math.max(0, 1440 - mins) : mins;
+        }
+        if (val > 24 && val <= 1440) {
+          return isDowntimeCol ? Math.max(0, 1440 - val) : Math.round(val);
+        }
+        return isDowntimeCol ? Math.max(0, Math.round((24 - val) * 60)) : Math.round(val * 60);
+      }
+
+      if (s.includes(':')) {
+        const parts = s.split(':').map(p => parseFloat(p) || 0);
+        if (parts.length >= 2) {
+          const totalMins = Math.round((parts[0] * 60) + parts[1] + ((parts[2] || 0) / 60));
+          return isDowntimeCol ? Math.max(0, 1440 - totalMins) : totalMins;
+        }
+      }
+
+      if (s.includes('h') || s.includes('m') || s.includes('s')) {
+        let hours = 0, mins = 0, secs = 0;
+        const hMatch = s.match(/(\d+)\s*h/);
+        const mMatch = s.match(/(\d+)\s*m/);
+        const sMatch = s.match(/(\d+)\s*s/);
+        if (hMatch) hours = parseInt(hMatch[1]) || 0;
+        if (mMatch) mins = parseInt(mMatch[1]) || 0;
+        if (sMatch) secs = parseInt(sMatch[1]) || 0;
+
+        const totalMins = Math.round((hours * 60) + mins + (secs / 60));
+        return isDowntimeCol ? Math.max(0, 1440 - totalMins) : totalMins;
+      }
+
+      const num = parseFloat(s);
+      if (isNaN(num)) return isDowntimeCol ? 0 : 1440;
+
+      if (num > 1440) {
+        const mins = Math.round(num / 60);
+        return isDowntimeCol ? Math.max(0, 1440 - mins) : mins;
+      }
+      if (num > 24 && num <= 1440) {
+        return isDowntimeCol ? Math.max(0, 1440 - num) : Math.round(num);
+      }
+
+      return isDowntimeCol ? Math.max(0, Math.round((24 - num) * 60)) : Math.round(num * 60);
+    }
+
+    function App() {
+      const [currentRole, setCurrentRole] = useState('Admin');
+      const [activeTab, setActiveTab] = useState('classifier');
+      const [timeWindow, setTimeWindow] = useState('90');
+      const [districts, setDistricts] = useState(INITIAL_DISTRICTS);
+      const [incidents, setIncidents] = useState(INITIAL_INCIDENTS);
+      const [toastMsg, setToastMsg] = useState(null);
+
+      const [headerRowOffset, setHeaderRowOffset] = useState(0);
+
+      const [columnHeaders, setColumnHeaders] = useState([]);
+      const [rawRows, setRawRows] = useState([]);
+      const [allSheetMatrix, setAllSheetMatrix] = useState([]);
+      const [sampleDataRows, setSampleDataRows] = useState([]);
+
+      const [selectedCamCol, setSelectedCamCol] = useState('');
+      const [selectedValCol, setSelectedValCol] = useState('');
+      const [selectedReasonCol, setSelectedReasonCol] = useState('');
+      const [selectedNotesCol, setSelectedNotesCol] = useState('');
+
+      const [classifierSummaryResult, setClassifierSummaryResult] = useState(null);
+      const [classifiedRowsList, setClassifiedRowsList] = useState([]);
+      const [exportableRows, setExportableRows] = useState([]);
+      const [tableSearchQuery, setTableSearchQuery] = useState('');
+      const [tableFilter, setTableFilter] = useState('ALL');
+
+      const [isNewIncidentModalOpen, setIsNewIncidentModalOpen] = useState(false);
+      const [newIncidentForm, setNewIncidentForm] = useState({
+        districtId: 'DIST-09', camId: '192.168.10.45', location: 'Prakasham Checkpost', durationMins: 120, category: 'Fiber Cut', remarks: '', proofFile: null
+      });
+
+      const showNotification = (msg) => {
+        setToastMsg(msg);
+        setTimeout(() => setToastMsg(null), 4000);
+      };
+
+      const computedDistricts = useMemo(() => {
+        return districts.map(d => {
+          const districtApprovedExclusions = incidents
+            .filter(inc => inc.districtId === d.id && inc.status === 'Approved')
+            .reduce((sum, inc) => sum + inc.durationMins, 0);
+
+          const daysNum = parseInt(timeWindow) || 90;
+          const totalExpectedPerCam = daysNum * 24 * 60;
+          const totalExpectedMins = d.totalCameras * totalExpectedPerCam;
+          const operatingMins = totalExpectedMins * (d.grossUptime / 100);
+          
+          const netMinutes = operatingMins + (d.externalExclusionsMins + districtApprovedExclusions);
+          const computedNetUptime = Math.min(99.9, Math.max(d.grossUptime, (netMinutes / totalExpectedMins) * 100));
+
+          return {
+            ...d,
+            netUptime: parseFloat(computedNetUptime.toFixed(1)),
+            approvedExclusionsMinsTotal: d.externalExclusionsMins + districtApprovedExclusions
+          };
+        }).sort((a, b) => b.netUptime - a.netUptime)
+        .map((d, index) => ({ ...d, currentCalculatedRank: index + 1 }));
+      }, [districts, incidents, timeWindow]);
+
+      const handleIncidentReview = (incidentId, action, rejectionReason = '') => {
+        setIncidents(prev => prev.map(inc => {
+          if (inc.id === incidentId) {
+            return {
+              ...inc,
+              status: action === 'APPROVE' ? 'Approved' : 'Rejected',
+              dcManager: currentRole === 'Admin' ? 'System Administrator' : 'DC Manager',
+              approvedAt: action === 'APPROVE' ? new Date().toISOString().replace('T', ' ').substring(0, 16) : null,
+              rejectedAt: action === 'REJECT' ? new Date().toISOString().replace('T', ' ').substring(0, 16) : null,
+              rejectionReason: rejectionReason || inc.rejectionReason
+            };
+          }
+          return inc;
+        }));
+        showNotification(`Incident ${incidentId} was ${action === 'APPROVE' ? 'APPROVED' : 'REJECTED'}. SLA recalculated.`);
+      };
+
+      const handleCreateIncident = (e) => {
+        e.preventDefault();
+        const distObj = districts.find(d => d.id === newIncidentForm.districtId);
+        const newEntry = {
+          id: `INC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+          camId: newIncidentForm.camId,
+          districtId: newIncidentForm.districtId,
+          districtName: distObj ? distObj.name : 'PRAKASHAM',
+          location: newIncidentForm.location,
+          downtimeStart: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          durationMins: parseInt(newIncidentForm.durationMins),
+          category: newIncidentForm.category,
+          submittedBy: 'Field Manager (Self)',
+          remarks: newIncidentForm.remarks,
+          proofFile: newIncidentForm.proofFile ? newIncidentForm.proofFile.name : 'attached_evidence.jpg',
+          proofUrl: 'https://images.unsplash.com/photo-1544717297-fa95b6ee9643?auto=format&fit=crop&w=600&q=80',
+          status: 'Pending DC Review',
+          submittedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+        };
+        setIncidents([newEntry, ...incidents]);
+        setIsNewIncidentModalOpen(false);
+        showNotification(`Downtime exclusion claim ${newEntry.id} submitted for DC review.`);
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const bstr = evt.target.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+
+            const rawMatrix = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+            setAllSheetMatrix(rawMatrix);
+
+            if (!rawMatrix || rawMatrix.length === 0) {
+              alert('Uploaded file is empty.');
+              return;
+            }
+
+            // SMART HEADER ROW LOCATOR
+            let trueHeaderIdx = 0;
+            for (let i = 0; i < Math.min(10, rawMatrix.length); i++) {
+              const rowStr = rawMatrix[i].map(c => String(c).toLowerCase()).join(' ');
+              if (rowStr.includes('ip') || rowStr.includes('monitor') || rowStr.includes('uptime') || rowStr.includes('downtime') || rowStr.includes('sr. no') || rowStr.includes('district')) {
+                trueHeaderIdx = i;
+                break;
+              }
+            }
+
+            setHeaderRowOffset(trueHeaderIdx);
+            processMatrixWithHeaderIdx(rawMatrix, trueHeaderIdx, file.name);
+
+          } catch (err) {
+            console.error(err);
+            alert("Error parsing Excel file.");
+          }
+        };
+        reader.readAsBinaryString(file);
+      };
+
+      const processMatrixWithHeaderIdx = (matrix, headerIdx, fileName) => {
+        const headers = matrix[headerIdx].map((h, i) => String(h).trim() || `Column_${i + 1}`);
+        const dataRowsArray = [];
+
+        for (let i = headerIdx + 1; i < matrix.length; i++) {
+          const rowArr = matrix[i];
+          if (!rowArr || rowArr.length === 0 || rowArr.every(c => String(c).trim() === "")) continue;
+
+          const rowObj = {};
+          headers.forEach((h, colIdx) => {
+            rowObj[h] = rowArr[colIdx] !== undefined ? rowArr[colIdx] : "";
+          });
+          dataRowsArray.push(rowObj);
+        }
+
+        setColumnHeaders(headers);
+        setRawRows(dataRowsArray);
+        setSampleDataRows(dataRowsArray.slice(0, 3));
+
+        const lower = headers.map(h => h.toString().toLowerCase());
+
+        let camCol = headers[lower.findIndex(h => h === 'ip' || h.includes('camera') || h.includes('location') || h.includes('device') || h.includes('node'))];
+        if (!camCol) camCol = headers[0];
+
+        let valCol = headers[lower.findIndex(h => h.includes('monitor.uptime') || h.includes('monitor.downtime') || h.includes('uptime') || h.includes('downtime') || h.includes('online'))];
+        if (!valCol) valCol = headers[1] || headers[0];
+
+        const reasonCol = headers[lower.findIndex(h => h.includes('reason') || h.includes('outage') || h.includes('cause') || h.includes('category'))] || '';
+        const notesCol = headers[lower.findIndex(h => h.includes('notes') || h.includes('rem') || h.includes('text'))] || '';
+
+        setSelectedCamCol(camCol);
+        setSelectedValCol(valCol);
+        setSelectedReasonCol(reasonCol);
+        setSelectedNotesCol(notesCol);
+
+        runExactUserSpecEngine(dataRowsArray, camCol, valCol, reasonCol, notesCol, fileName);
+      };
+
+      const runExactUserSpecEngine = (dataRows, camKey, valKey, reasonKey, notesKey, fileName) => {
+        let reachedCount = 0;
+        let notReachedExternalCount = 0;
+        let notReachedInternalCount = 0;
+
+        const processedList = [];
+        const fullExportRows = [];
+        const externalKeywords = ["power", "isp", "third-party", "site access", "damage", "discom", "grid", "fiber", "optical", "external", "ext"];
+
+        const isDowntimeCol = valKey.toLowerCase().includes('downtime');
+
+        dataRows.forEach((row, idx) => {
+          const camId = (row[camKey] || `CAM-ROW-${idx + 1}`).toString().trim();
+          let rawVal = row[valKey];
+
+          const onlineMins = parseOnlineDurationToMinutes(rawVal, isDowntimeCol);
+          const onlineHoursDecimal = parseFloat((onlineMins / 60).toFixed(2));
+          
+          const hoursPart = Math.floor(onlineMins / 60);
+          const minsPart = onlineMins % 60;
+          const formattedDuration = `${hoursPart}h ${minsPart}m (${onlineMins} mins)`;
+
+          const reasonText = reasonKey ? (row[reasonKey] || "").toString().toLowerCase() : "";
+          const notesText = notesKey ? (row[notesKey] || "").toString().toLowerCase() : "";
+          const combinedCauseText = `${reasonText} ${notesText}`.trim();
+
+          // EXACT RULE: Minimum Required Online Time = 23 Hours 25 Minutes (1,405 minutes)
+          let isReached = onlineMins >= 1405;
+
+          let slaStatusLabel = '';
+          let issueCategory = 'N/A';
+          let badgeColor = '';
+          let categoryCode = '';
+
+          if (isReached) {
+            reachedCount++;
+            categoryCode = 'REACHED';
+            slaStatusLabel = 'SLA Reached';
+            issueCategory = 'None (SLA Met)';
+            badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+          } else {
+            const isExternalMatch = externalKeywords.some(kw => combinedCauseText.includes(kw));
+
+            if (isExternalMatch) {
+              notReachedExternalCount++;
+              categoryCode = 'NOT_REACHED_EXTERNAL';
+              slaStatusLabel = 'SLA Not Reached';
+              issueCategory = 'External';
+              badgeColor = 'bg-rose-500/20 text-rose-400 border-rose-500/40';
+            } else {
+              notReachedInternalCount++;
+              categoryCode = 'NOT_REACHED_INTERNAL';
+              slaStatusLabel = 'SLA Not Reached';
+              issueCategory = 'Internal';
+              badgeColor = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+            }
+          }
+
+          const notesDisplay = combinedCauseText || (isReached ? 'Optimal Online Duration' : 'Unspecified outage reason');
+
+          processedList.push({
+            rowIndex: idx + 1,
+            camId,
+            onlineDuration: formattedDuration,
+            onlineMins,
+            onlineHoursDecimal,
+            rawValDisplay: String(rawVal),
+            slaStatus: slaStatusLabel,
+            issueCategory,
+            notes: notesDisplay,
+            categoryCode,
+            badgeColor
+          });
+
+          fullExportRows.push({
+            "Camera ID": camId,
+            "Online Duration": formattedDuration,
+            "SLA Status": slaStatusLabel,
+            "Issue Category (Internal/External)": issueCategory,
+            "Notes": notesDisplay
+          });
+        });
+
+        const totalRecords = dataRows.length;
+        const targetSlaPercent = parseFloat((((reachedCount + notReachedExternalCount) / totalRecords) * 100).toFixed(2));
+        const rawGrossSlaPercent = parseFloat(((reachedCount / totalRecords) * 100).toFixed(2));
+
+        setClassifiedRowsList(processedList);
+        setExportableRows(fullExportRows);
+        setClassifierSummaryResult({
+          fileName: fileName || 'Uploaded Spreadsheet.xlsx',
+          totalRecords,
+          reachedCount,
+          notReachedExternalCount,
+          notReachedInternalCount,
+          rawGrossSlaPercent,
+          targetSlaPercent,
+          timestamp: new Date().toLocaleTimeString()
+        });
+
+        showNotification(`Evaluation Complete! Evaluated ${totalRecords} rows using '${valKey}'. SLA Reached: ${reachedCount}, External: ${notReachedExternalCount}, Internal: ${notReachedInternalCount}.`);
+      };
+
+      const downloadProcessedExcelReport = () => {
+        if (!exportableRows || exportableRows.length === 0) {
+          alert('No evaluated data available to export.');
+          return;
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(exportableRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "SLA Evaluation Table");
+
+        const fileName = classifierSummaryResult ? `SLA_Evaluation_Table_${classifierSummaryResult.fileName}` : "Camera_SLA_Evaluation_Table.xlsx";
+        XLSX.writeFile(workbook, fileName);
+
+        showNotification(`📥 Downloaded official SLA Evaluation Table as '${fileName}'!`);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col bg-[#0b0f19] text-gray-100">
+          
+          <header className="border-b border-gray-800 bg-[#111827]/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-gradient-to-tr from-blue-600 to-indigo-500 rounded-xl shadow-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 002-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-bold text-white">Camera Online Duration SLA Evaluator</h1>
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full">Column Mapping Fix</span>
+                  </div>
+                  <p className="text-xs text-gray-400">Maps <code className="text-amber-300">IP</code> and <code className="text-amber-300">monitor.uptime.seconds.sum</code> directly</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 text-xs">
+                <div className="bg-gray-900 border border-gray-700 px-3 py-1.5 rounded-lg text-emerald-400 font-semibold">
+                  Rule: Online Time &ge; 23h 25m (1,405 mins) = SLA Reached
+                </div>
+                <select 
+                  value={currentRole}
+                  onChange={(e) => setCurrentRole(e.target.value)}
+                  className="bg-gray-800 text-blue-400 font-semibold border border-gray-700 rounded px-2 py-0.5"
+                >
+                  <option value="Admin">⚡ System Admin</option>
+                  <option value="DC_Manager">🛡️ DC Manager</option>
+                  <option value="Field_Manager">🛠️ Field Manager</option>
+                </select>
+              </div>
+            </div>
+          </header>
+
+          {toastMsg && (
+            <div className="fixed bottom-5 right-5 z-50 bg-blue-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border border-blue-400/40">
+              <span className="text-sm font-medium">{toastMsg}</span>
+            </div>
+          )}
+
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3 flex-wrap gap-3">
+              <nav className="flex space-x-2 flex-wrap gap-y-2">
+                {[
+                  { id: 'classifier', label: '📊 Camera SLA Evaluator Table', badge: 'Active Spec' },
+                  { id: 'leaderboard', label: '🏆 Daily Leaderboard', badge: '13 AP Districts' },
+                  { id: 'dashboard', label: '📊 District Dashboards', badge: null },
+                  { id: 'workflow', label: '📋 Exception & Proof Portal', badge: incidents.filter(i => i.status === 'Pending DC Review').length },
+                  { id: 'reports', label: '📑 Audit Reports', badge: 'PDF/XLS' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center space-x-2 ${
+                      activeTab === tab.id
+                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40 shadow-md'
+                        : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.badge !== null && (
+                      <span className={`px-2 py-0.5 text-xs rounded-full ${
+                        activeTab === tab.id ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700'
+                      }`}>
+                        {tab.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex items-center space-x-3">
+                {classifierSummaryResult && (
+                  <button
+                    onClick={downloadProcessedExcelReport}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl text-sm shadow-lg flex items-center space-x-2 border border-blue-400/30"
+                  >
+                    <span>📥 Download SLA Evaluation Table (Excel)</span>
+                  </button>
+                )}
+
+                {(currentRole === 'Admin' || currentRole === 'Field_Manager') && (
+                  <button
+                    onClick={() => setIsNewIncidentModalOpen(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-medium rounded-xl text-sm shadow-lg flex items-center space-x-2"
+                  >
+                    <span>Log Downtime Reason & Proof</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* TAB: CAMERA SLA EVALUATOR TABLE */}
+            {activeTab === 'classifier' && (
+              <div className="space-y-6">
+                
+                {/* MULTI-HEADER ROW SCANNER CONTROL CARD */}
+                {allSheetMatrix.length > 0 && (
+                  <div className="p-4 bg-gray-900/90 rounded-2xl border border-blue-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center space-x-3">
+                      <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl font-bold">🔍</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">Multi-Header Row Inspector (Active Header Row #{headerRowOffset + 1})</h4>
+                        <p className="text-[11px] text-gray-400">Select the row that contains your actual column headers (<code className="text-amber-300">IP</code>, <code className="text-amber-300">monitor.uptime.seconds.sum</code>):</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-400 font-semibold">Header Row:</span>
+                      <select
+                        value={headerRowOffset}
+                        onChange={(e) => {
+                          const idx = parseInt(e.target.value);
+                          setHeaderRowOffset(idx);
+                          processMatrixWithHeaderIdx(allSheetMatrix, idx, 'Excel Report.xlsx');
+                        }}
+                        className="bg-gray-800 text-emerald-400 font-bold border border-gray-700 rounded-xl px-3 py-1.5 text-xs font-mono"
+                      >
+                        {allSheetMatrix.slice(0, 10).map((r, i) => (
+                          <option key={i} value={i}>
+                            Row #{i + 1}: {r.slice(0, 5).filter(Boolean).join(' | ') || 'Empty Row'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* UPLOAD BOX */}
+                <div className="glass-card p-6 rounded-2xl border border-gray-800 space-y-6">
+                  <div className="border-2 border-dashed border-blue-500/40 hover:border-blue-500 bg-gray-900/60 rounded-2xl p-8 text-center transition">
+                    <svg className="w-12 h-12 text-blue-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <h4 className="text-sm font-semibold text-white">Upload Your Camera Excel / CSV File</h4>
+                    <p className="text-xs text-gray-400 mt-1 mb-4">Select <code className="text-amber-300">IP</code> for Camera ID and <code className="text-amber-300">monitor.uptime.seconds.sum</code> for Online Duration.</p>
+                    
+                    <label className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer inline-block transition">
+                      <span>📁 Choose Excel / CSV File</span>
+                      <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileUpload} className="hidden" />
+                    </label>
+                  </div>
+
+                  {/* RAW EXCEL HEADERS & SAMPLE DATA INSPECTOR */}
+                  {sampleDataRows.length > 0 && (
+                    <div className="p-4 bg-gray-950 rounded-xl border border-blue-500/30 space-y-3">
+                      <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                        <span className="text-xs font-bold text-blue-400 uppercase">🔍 File Inspection: Detected Columns in Your Excel File</span>
+                        <span className="text-[11px] text-gray-400">Showing first 3 sample rows</span>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-[11px] text-gray-300 font-mono">
+                          <thead className="bg-gray-900 text-blue-300">
+                            <tr>
+                              {columnHeaders.map((h, i) => <th key={i} className="px-3 py-1.5 border border-gray-800">{h}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sampleDataRows.map((r, i) => (
+                              <tr key={i} className="border-b border-gray-800">
+                                {columnHeaders.map((h, j) => <td key={j} className="px-3 py-1 border border-gray-800">{String(r[h])}</td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* COLUMN MAPPER */}
+                  {columnHeaders.length > 0 && (
+                    <div className="p-4 bg-gray-900 rounded-xl border border-gray-700 space-y-4">
+                      <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                        <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">🎯 Select / Map Your Excel Columns</h4>
+                        <span className="text-xs text-gray-400">Total Records: <strong className="text-white font-mono">{rawRows.length.toLocaleString()} Rows</strong></span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+                        <div>
+                          <label className="block text-gray-400 mb-1 font-semibold">1. Camera ID / Location Column</label>
+                          <select
+                            value={selectedCamCol}
+                            onChange={(e) => {
+                              setSelectedCamCol(e.target.value);
+                              runExactUserSpecEngine(rawRows, e.target.value, selectedValCol, selectedReasonCol, selectedNotesCol, 'Excel Report.xlsx');
+                            }}
+                            className="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 font-mono"
+                          >
+                            {columnHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-amber-400 mb-1 font-bold">2. Online Duration Column</label>
+                          <select
+                            value={selectedValCol}
+                            onChange={(e) => {
+                              setSelectedValCol(e.target.value);
+                              runExactUserSpecEngine(rawRows, selectedCamCol, e.target.value, selectedReasonCol, selectedNotesCol, 'Excel Report.xlsx');
+                            }}
+                            className="w-full bg-gray-800 text-white border border-amber-500/80 rounded-lg p-2 font-mono font-bold"
+                          >
+                            {columnHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-gray-400 mb-1 font-semibold">3. Outage Reason Column</label>
+                          <select
+                            value={selectedReasonCol}
+                            onChange={(e) => {
+                              setSelectedReasonCol(e.target.value);
+                              runExactUserSpecEngine(rawRows, selectedCamCol, selectedValCol, e.target.value, selectedNotesCol, 'Excel Report.xlsx');
+                            }}
+                            className="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 font-mono"
+                          >
+                            <option value="">-- Select Column --</option>
+                            {columnHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-gray-400 mb-1 font-semibold">4. Notes / Remarks Column</label>
+                          <select
+                            value={selectedNotesCol}
+                            onChange={(e) => {
+                              setSelectedNotesCol(e.target.value);
+                              runExactUserSpecEngine(rawRows, selectedCamCol, selectedValCol, selectedReasonCol, e.target.value, 'Excel Report.xlsx');
+                            }}
+                            className="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 font-mono"
+                          >
+                            <option value="">-- Select Column --</option>
+                            {columnHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => runExactUserSpecEngine(rawRows, selectedCamCol, selectedValCol, selectedReasonCol, selectedNotesCol, 'Excel Report.xlsx')}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition"
+                      >
+                        ⚡ Evaluate Camera SLA Requirements
+                      </button>
+                    </div>
+                  )}
+
+                  {/* SUMMARY CARDS & SLA PERCENTAGE */}
+                  {classifierSummaryResult && (
+                    <div className="space-y-6">
+                      
+                      <div className="p-6 bg-gray-900/90 rounded-2xl border border-emerald-500/40 space-y-4">
+                        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-emerald-400 font-bold text-lg">✓</span>
+                            <h4 className="text-sm font-bold text-white">Evaluation Summary ({classifierSummaryResult.fileName})</h4>
+                          </div>
+
+                          <button
+                            onClick={downloadProcessedExcelReport}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-lg transition flex items-center space-x-2"
+                          >
+                            <span>📥 Download SLA Evaluation Table (Excel)</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs font-mono">
+                          <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                            <p className="text-gray-400 uppercase text-[10px] font-semibold">Total Cameras Evaluated</p>
+                            <p className="text-2xl font-bold text-white mt-1">{classifierSummaryResult.totalRecords.toLocaleString()}</p>
+                          </div>
+
+                          <div className="bg-emerald-950/70 p-4 rounded-xl border border-emerald-500/40">
+                            <p className="text-emerald-400 uppercase font-bold text-[10px]">🟢 SLA Reached (&ge; 23h 25m)</p>
+                            <p className="text-3xl font-extrabold text-emerald-300 mt-1">{classifierSummaryResult.reachedCount.toLocaleString()}</p>
+                          </div>
+
+                          <div className="bg-rose-950/70 p-4 rounded-xl border border-rose-500/40">
+                            <p className="text-rose-400 uppercase font-bold text-[10px]">🔴 SLA Not Reached (External)</p>
+                            <p className="text-3xl font-extrabold text-rose-300 mt-1">{classifierSummaryResult.notReachedExternalCount.toLocaleString()}</p>
+                          </div>
+
+                          <div className="bg-amber-950/70 p-4 rounded-xl border border-amber-500/40">
+                            <p className="text-amber-400 uppercase font-bold text-[10px]">🟡 SLA Not Reached (Internal)</p>
+                            <p className="text-3xl font-extrabold text-amber-300 mt-1">{classifierSummaryResult.notReachedInternalCount.toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="p-4 bg-gray-950/80 rounded-xl border border-gray-800 text-xs font-mono">
+                            <p className="text-gray-400 uppercase text-[10px]">Raw Unfiltered SLA % (Gross)</p>
+                            <p className="text-3xl font-extrabold text-gray-300 mt-1">{classifierSummaryResult.rawGrossSlaPercent}%</p>
+                          </div>
+
+                          <div className="p-4 bg-emerald-950/80 rounded-xl border border-emerald-500/60 text-xs font-mono">
+                            <p className="text-emerald-400 uppercase font-bold text-[10px]">🎯 Target SLA % (Excl. External Outages)</p>
+                            <p className="text-4xl font-black text-emerald-300 mt-1">{classifierSummaryResult.targetSlaPercent}%</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* OUTPUT FORMAT TABLE (EXACT SPECIFICATION COLUMNS) */}
+                      <div className="glass-card rounded-2xl border border-gray-800 overflow-hidden space-y-4">
+                        <div className="p-4 border-b border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4">
+                          <div>
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                              Output Format Table ({classifiedRowsList.length} Records)
+                            </h4>
+                            <p className="text-[11px] text-gray-400">Columns: Camera ID | Online Duration | SLA Status | Issue Category | Notes</p>
+                          </div>
+
+                          <div className="flex items-center space-x-3">
+                            <button
+                              onClick={downloadProcessedExcelReport}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow transition"
+                            >
+                              📥 Download Table
+                            </button>
+
+                            <div className="flex space-x-1 bg-gray-900 border border-gray-700 rounded-lg p-1 text-[11px]">
+                              {[
+                                { id: 'ALL', label: 'All Records' },
+                                { id: 'REACHED', label: '🟢 SLA Reached' },
+                                { id: 'NOT_REACHED_EXTERNAL', label: '🔴 External' },
+                                { id: 'NOT_REACHED_INTERNAL', label: '🟡 Internal' }
+                              ].map(st => (
+                                <button
+                                  key={st.id}
+                                  onClick={() => setTableFilter(st.id)}
+                                  className={`px-2 py-0.5 rounded font-semibold transition ${
+                                    tableFilter === st.id ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                                  }`}
+                                >
+                                  {st.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            <input
+                              type="text"
+                              placeholder="Search Camera ID..."
+                              value={tableSearchQuery}
+                              onChange={(e) => setTableSearchQuery(e.target.value)}
+                              className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-1 text-xs text-white placeholder-gray-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="overflow-x-auto max-h-96">
+                          <table className="w-full text-left text-xs text-gray-300">
+                            <thead className="bg-gray-900/90 text-blue-300 font-bold border-b border-gray-800 uppercase sticky top-0">
+                              <tr>
+                                <th className="px-4 py-3">Camera ID / Location</th>
+                                <th className="px-4 py-3 text-right">Online Duration</th>
+                                <th className="px-4 py-3 text-center">SLA Status</th>
+                                <th className="px-4 py-3 text-center">Issue Category</th>
+                                <th className="px-4 py-3">Notes</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-800 font-medium">
+                              {classifiedRowsList
+                                .filter(item => {
+                                  if (tableFilter === 'REACHED') return item.categoryCode === 'REACHED';
+                                  if (tableFilter === 'NOT_REACHED_EXTERNAL') return item.categoryCode === 'NOT_REACHED_EXTERNAL';
+                                  if (tableFilter === 'NOT_REACHED_INTERNAL') return item.categoryCode === 'NOT_REACHED_INTERNAL';
+                                  return true;
+                                })
+                                .filter(item => item.camId.toLowerCase().includes(tableSearchQuery.toLowerCase()))
+                                .map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-gray-800/40 transition">
+                                    <td className="px-4 py-3 font-mono font-bold text-white">{item.camId}</td>
+                                    <td className="px-4 py-3 text-right font-mono font-bold text-emerald-400">{item.onlineDuration}</td>
+                                    <td className="px-4 py-3 text-center font-bold">
+                                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${item.badgeColor}`}>
+                                        {item.slaStatus}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-center font-mono font-bold">
+                                      {item.issueCategory === 'External' && <span className="text-rose-400">External</span>}
+                                      {item.issueCategory === 'Internal' && <span className="text-amber-400">Internal</span>}
+                                      {item.issueCategory.includes('None') && <span className="text-gray-500">None</span>}
+                                    </td>
+                                    <td className="px-4 py-3 text-gray-300 italic">{item.notes}</td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: DAILY LEADERBOARD */}
+            {activeTab === 'leaderboard' && (
+              <div className="space-y-6">
+                <div className="glass-card rounded-2xl overflow-hidden border border-gray-800">
+                  <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+                    <h3 className="text-sm font-bold text-white uppercase">13 AP Districts Net SLA Leaderboard</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-gray-300">
+                      <thead className="bg-gray-900 text-gray-400 uppercase">
+                        <tr>
+                          <th className="px-4 py-3">Rank</th>
+                          <th className="px-4 py-3">District</th>
+                          <th className="px-4 py-3">DC Manager</th>
+                          <th className="px-4 py-3 text-right">Gross Uptime</th>
+                          <th className="px-4 py-3 text-right">Net SLA Uptime</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800">
+                        {computedDistricts.map((d) => (
+                          <tr key={d.id} className="hover:bg-gray-800/40">
+                            <td className="px-4 py-3 font-bold text-amber-400">#{d.currentCalculatedRank}</td>
+                            <td className="px-4 py-3 font-bold text-white">{d.name}</td>
+                            <td className="px-4 py-3">{d.dcManager}</td>
+                            <td className="px-4 py-3 text-right font-mono text-gray-400">{d.grossUptime}%</td>
+                            <td className="px-4 py-3 text-right font-mono font-bold text-emerald-400">{d.netUptime}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: DISTRICT DASHBOARDS */}
+            {activeTab === 'dashboard' && (
+              <div className="glass-card p-6 rounded-2xl border border-gray-800 space-y-4">
+                <h3 className="text-sm font-bold text-white uppercase">District Operational Overview</h3>
+                <p className="text-xs text-gray-400">Select any district from the Leaderboard tab to view full drill-down metrics.</p>
+              </div>
+            )}
+
+            {/* TAB 4: EXCEPTION WORKFLOW */}
+            {activeTab === 'workflow' && (
+              <div className="glass-card rounded-2xl border border-gray-800 p-6 space-y-4">
+                <h3 className="text-sm font-bold text-white uppercase">Exception Claims & Proof Approval Portal</h3>
+                <p className="text-xs text-gray-400">Active incidents list and DC approval queue.</p>
+              </div>
+            )}
+
+            {/* TAB 5: AUDIT REPORTS */}
+            {activeTab === 'reports' && (
+              <div className="glass-card p-6 rounded-2xl border border-gray-800 space-y-4">
+                <h3 className="text-base font-bold text-white">Compliance Audit & SLA Report Generator</h3>
+                <button onClick={() => showNotification('Audit Report downloaded!')} className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl">
+                  📥 Download Audit Package (PDF + Excel)
+                </button>
+              </div>
+            )}
+
+          </main>
+
+          {/* SUBMIT REMARKS MODAL */}
+          {isNewIncidentModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="glass-card max-w-lg w-full rounded-2xl p-6 border border-gray-700 space-y-4">
+                <div className="flex justify-between border-b border-gray-800 pb-3">
+                  <h3 className="text-sm font-bold text-white">Provide Remarks for Not-Reached Camera IP</h3>
+                  <button onClick={() => setIsNewIncidentModalOpen(false)} className="text-gray-400 hover:text-white font-bold">✕</button>
+                </div>
+                <form onSubmit={handleCreateIncident} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block text-gray-400 mb-1">Target District</label>
+                    <select
+                      value={newIncidentForm.districtId}
+                      onChange={(e) => setNewIncidentForm({ ...newIncidentForm, districtId: e.target.value })}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white"
+                    >
+                      {districts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-gray-400 mb-1">Camera IP / ID</label>
+                      <input type="text" value={newIncidentForm.camId} onChange={(e) => setNewIncidentForm({ ...newIncidentForm, camId: e.target.value })} className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white font-mono" required />
+                    </div>
+                    <div>
+                      <label className="block text-gray-400 mb-1">Cumulative Downtime (Mins)</label>
+                      <input type="number" value={newIncidentForm.durationMins} onChange={(e) => setNewIncidentForm({ ...newIncidentForm, durationMins: e.target.value })} className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white" required />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 mb-1">Mandatory Remarks & Root Cause</label>
+                    <textarea rows="3" value={newIncidentForm.remarks} onChange={(e) => setNewIncidentForm({ ...newIncidentForm, remarks: e.target.value })} placeholder="Explain root cause..." className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-white" required></textarea>
+                  </div>
+                  <div className="flex justify-end space-x-3">
+                    <button type="button" onClick={() => setIsNewIncidentModalOpen(false)} className="px-4 py-2 bg-gray-800 text-gray-300 font-bold rounded-xl">Cancel</button>
+                    <button type="submit" className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-xl">Submit Remarks for DC Review</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
